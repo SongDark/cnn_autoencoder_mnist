@@ -7,6 +7,8 @@ from utils import *
 from networks import *
 from datamanager import datamanager_mnist
 
+tf.compat.v1.disable_eager_execution()
+
 class AutoEncoder_sup(BasicTrainFramework):
     def __init__(self, batch_size, version="AE_SUP"):
         super(AutoEncoder_sup, self).__init__(batch_size, version)
@@ -29,9 +31,9 @@ class AutoEncoder_sup(BasicTrainFramework):
         self.build_dirs()
     
     def build_placeholder(self):
-        self.source = tf.placeholder(shape=(self.batch_size, 28, 28, 1), dtype=tf.float32)
-        self.target = tf.placeholder(shape=(self.batch_size, 28, 28, 1), dtype=tf.float32)
-        self.labels = tf.placeholder(shape=(self.batch_size, self.class_num), dtype=tf.float32)
+        self.source = tf.compat.v1.placeholder(shape=(self.batch_size, 28, 28, 1), dtype=tf.float32)
+        self.target = tf.compat.v1.placeholder(shape=(self.batch_size, 28, 28, 1), dtype=tf.float32)
+        self.labels = tf.compat.v1.placeholder(shape=(self.batch_size, self.class_num), dtype=tf.float32)
     
     def build_network(self):
         self.embedding = self.encoder(self.source, is_training=True, reuse=False)
@@ -39,7 +41,7 @@ class AutoEncoder_sup(BasicTrainFramework):
         self.pred = self.decoder(self.embedding, is_training=True, reuse=False)
         self.pred_test = self.decoder(self.embedding, is_training=False, reuse=True)
 
-        self.mean_pred, self.std_pred = tf.nn.moments(self.pred, axes=range(len(self.source.shape)))
+        self.mean_pred, self.std_pred = tf.nn.moments(x=self.pred, axes=range(len(self.source.shape)))
         self.std_pred = tf.sqrt(self.std_pred)
 
     def build_optimizer(self):
@@ -47,11 +49,11 @@ class AutoEncoder_sup(BasicTrainFramework):
         
         dist_code = self.embedding[:, :self.class_num]
         self.dist_code_test = tf.nn.softmax(self.embedding_test[:, :self.class_num])
-        self.Q_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=dist_code, labels=self.labels))
+        self.Q_loss = tf.reduce_mean(input_tensor=tf.nn.softmax_cross_entropy_with_logits(logits=dist_code, labels=self.labels))
         
-        with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-            self.reconstruct_solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1=0.5).minimize(self.reconstruct_loss, var_list=self.encoder.vars + self.decoder.vars)
-            self.Q_solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1=0.5).minimize(self.Q_loss, var_list=self.encoder.vars)
+        with tf.control_dependencies(tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)):
+            self.reconstruct_solver = tf.compat.v1.train.AdamOptimizer(learning_rate=2e-4, beta1=0.5).minimize(self.reconstruct_loss, var_list=self.encoder.vars + self.decoder.vars)
+            self.Q_solver = tf.compat.v1.train.AdamOptimizer(learning_rate=2e-4, beta1=0.5).minimize(self.Q_loss, var_list=self.encoder.vars)
 
     def hist(self, epoch):
         real = self.sample_data["data"]
@@ -106,7 +108,7 @@ class AutoEncoder_sup(BasicTrainFramework):
 
                 if cnt % 10 == 0:
                     r, q = self.sess.run([self.reconstruct_loss, self.Q_loss], feed_dict=feed_dict)
-                    print "Epoch [%3d/%3d] iter [%3d/%3d] rloss=%.3f qloss=%.3f" % (epoch, epoches, idx, batches_per_epoch, r, q)
+                    print ("Epoch [%3d/%3d] iter [%3d/%3d] rloss=%.3f qloss=%.3f" % (epoch, epoches, idx, batches_per_epoch, r, q))
             
             if epoch % 5 == 0:
                 self.hist(epoch)
@@ -136,20 +138,20 @@ class AutoEncoder(BasicTrainFramework):
         self.build_dirs()
     
     def build_placeholder(self):
-        self.source = tf.placeholder(shape=(self.batch_size, 28, 28, 1), dtype=tf.float32)
-        self.target = tf.placeholder(shape=(self.batch_size, 28, 28, 1), dtype=tf.float32)
+        self.source = tf.compat.v1.placeholder(shape=(self.batch_size, 28, 28, 1), dtype=tf.float32)
+        self.target = tf.compat.v1.placeholder(shape=(self.batch_size, 28, 28, 1), dtype=tf.float32)
     
     def build_network(self):
         self.embedding = self.encoder(self.source, is_training=True, reuse=False)
         self.pred = self.decoder(self.embedding, is_training=True, reuse=False)
         self.pred_test = self.decoder(self.embedding, is_training=False, reuse=True)
 
-        self.mean_pred, self.std_pred = tf.nn.moments(self.pred, axes=range(len(self.source.shape)))
+        self.mean_pred, self.std_pred = tf.nn.moments(x=self.pred, axes=list(range(len(self.source.shape))))
         self.std_pred = tf.sqrt(self.std_pred)
 
     def build_optimizer(self):
         self.loss = mse(self.pred, self.target, self.batch_size)
-        self.solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1=0.5).minimize(self.loss, var_list=self.encoder.vars + self.decoder.vars)
+        self.solver = tf.compat.v1.train.AdamOptimizer(learning_rate=2e-4, beta1=0.5).minimize(self.loss, var_list=self.encoder.vars + self.decoder.vars)
     
     def hist(self, epoch):
         real = self.sample_data["data"]
@@ -200,9 +202,9 @@ class AutoEncoder(BasicTrainFramework):
 
                 if cnt % 10 == 0:
                     loss = self.sess.run(self.loss, feed_dict=feed_dict)
-                    print "Epoch [%3d/%3d] iter [%3d/%3d] loss=%.3f" % (epoch, epoches, idx, batches_per_epoch, loss)
+                    print ("Epoch [%3d/%3d] iter [%3d/%3d] loss=%.3f" % (epoch, epoches, idx, batches_per_epoch, loss))
             mean, std = self.sess.run([self.mean_pred, self.std_pred], feed_dict=feed_dict)
-            print "mean=%.3f std=%.3f" % (mean, std)
+            print ("mean=%.3f std=%.3f" % (mean, std))
             if epoch % 5 == 0:
                 self.hist(epoch)
                 self.sample(epoch)

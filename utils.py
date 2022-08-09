@@ -1,4 +1,6 @@
 import tensorflow as tf 
+import tf_slim as slim
+
 import numpy as np
 from scipy.io import loadmat
 import os
@@ -9,7 +11,7 @@ class BasicBlock(object):
         self.hidden_units = hidden_units
     @property
     def vars(self):
-        return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, self.name)
+        return tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, self.name)
 
 class BasicTrainFramework(object):
 	def __init__(self, batch_size, version):
@@ -22,14 +24,14 @@ class BasicTrainFramework(object):
 		self.fig_dir = os.path.join('figs', self.version)
 		for d in [self.log_dir, self.model_dir, self.fig_dir]:
 			if (d is not None) and (not os.path.exists(d)):
-				print "mkdir " + d
+				print ("mkdir " + d)
 				os.makedirs(d)
 	
 	def build_sess(self):
-		gpu_options = tf.GPUOptions(allow_growth=True)
-		self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
-		self.sess.run(tf.global_variables_initializer())
-		self.saver = tf.train.Saver()
+		gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
+		self.sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(gpu_options=gpu_options))
+		self.sess.run(tf.compat.v1.global_variables_initializer())
+		self.saver = tf.compat.v1.train.Saver()
 	
 	def build_network(self):
 		self.D_logit_real = None 
@@ -37,24 +39,24 @@ class BasicTrainFramework(object):
 
 	def load_model(self, checkpoint_dir=None, ckpt_name=None):
 		import re 
-		print "load checkpoints ..."
+		print ("load checkpoints ...")
 		checkpoint_dir = checkpoint_dir or self.model_dir
 		ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
 		if ckpt and ckpt.model_checkpoint_path:
 			ckpt_name = ckpt_name or os.path.basename(ckpt.model_checkpoint_path)
 			self.saver.restore(self.sess, os.path.join(checkpoint_dir, ckpt_name))
 			counter = int(next(re.finditer("(\d+)(?!.*\d)",ckpt_name)).group(0))
-			print "Success to read {}".format(ckpt_name)
+			print ("Success to read {}".format(ckpt_name))
 			return True, counter
 		else:
-			print "Failed to find a checkpoint"
+			print ("Failed to find a checkpoint")
 			return False, 0
 
 def lrelu(x, leak=0.2, name='leaky_relu'):
 	return tf.maximum(x, leak*x, name=name) 
 
 def bn(x, is_training, name):
-	return tf.contrib.layers.batch_norm(x, 
+	return slim.layers.batch_norm(x, 
 										decay=0.999, 
 										updates_collections=None, 
 										epsilon=0.001, 
@@ -70,20 +72,20 @@ def spectral_norm(w, iteration=10, name="sn"):
 	w_shape = w.shape.as_list() # [KH, KW, Cin, Cout] or [H, W]
 	w = tf.reshape(w, [-1, w_shape[-1]]) # [KH*KW*Cin, Cout] or [H, W]
 
-	u = tf.get_variable(name+"_u", [1, w_shape[-1]], initializer=tf.random_normal_initializer(), trainable=False)
-	s = tf.get_variable(name+"_sigma", [1, ], initializer=tf.random_normal_initializer(), trainable=False)
+	u = tf.compat.v1.get_variable(name+"_u", [1, w_shape[-1]], initializer=tf.compat.v1.random_normal_initializer(), trainable=False)
+	s = tf.compat.v1.get_variable(name+"_sigma", [1, ], initializer=tf.compat.v1.random_normal_initializer(), trainable=False)
 
 	u_hat = u # [1, Cout] or [1, W]
 	v_hat = None 
 
 	for _ in range(iteration):
-		v_hat = tf.nn.l2_normalize(tf.matmul(u_hat, tf.transpose(w))) # [1, KH*KW*Cin] or [1, H]
+		v_hat = tf.nn.l2_normalize(tf.matmul(u_hat, tf.transpose(a=w))) # [1, KH*KW*Cin] or [1, H]
 		u_hat = tf.nn.l2_normalize(tf.matmul(v_hat, w)) # [1, Cout] or [1, W]
 		
 	u_hat = tf.stop_gradient(u_hat)
 	v_hat = tf.stop_gradient(v_hat)
 
-	sigma = tf.matmul(tf.matmul(v_hat, w), tf.transpose(u_hat)) # [1,1]
+	sigma = tf.matmul(tf.matmul(v_hat, w), tf.transpose(a=u_hat)) # [1,1]
 	sigma = tf.reshape(sigma, (1,))
 
 	with tf.control_dependencies([u.assign(u_hat), s.assign(sigma)]):
@@ -95,27 +97,27 @@ def spectral_norm(w, iteration=10, name="sn"):
 
 def linear(x, output_size, stddev=0.02, bias_start=0.0, name='linear'):
 	shape = x.get_shape().as_list()
-	with tf.variable_scope(name):
-		W = tf.get_variable(
+	with tf.compat.v1.variable_scope(name):
+		W = tf.compat.v1.get_variable(
 			'weights', [shape[1], output_size], 
 			tf.float32, 
-			tf.random_normal_initializer(stddev=stddev))
-		bias = tf.get_variable(
+			tf.compat.v1.random_normal_initializer(stddev=stddev))
+		bias = tf.compat.v1.get_variable(
 			'biases', [output_size], 
-			initializer=tf.constant_initializer(bias_start))
+			initializer=tf.compat.v1.constant_initializer(bias_start))
 
 	return tf.matmul(x,W) + bias
 
 def dense(x, output_size, stddev=0.02, bias_start=0.0, activation=None, sn=False, reuse=False, name='dense'):
 	shape = x.get_shape().as_list()
-	with tf.variable_scope(name, reuse=reuse):
-		W = tf.get_variable(
+	with tf.compat.v1.variable_scope(name, reuse=reuse):
+		W = tf.compat.v1.get_variable(
 			'weights', [shape[1], output_size], 
 			tf.float32, 
-			tf.random_normal_initializer(stddev=stddev))
-		bias = tf.get_variable(
+			tf.compat.v1.random_normal_initializer(stddev=stddev))
+		bias = tf.compat.v1.get_variable(
 			'biases', [output_size], 
-			initializer=tf.constant_initializer(bias_start))
+			initializer=tf.compat.v1.constant_initializer(bias_start))
 		if sn:
 			W = spectral_norm(W, name="sn")
 	out = tf.matmul(x, W) + bias 
@@ -125,20 +127,20 @@ def dense(x, output_size, stddev=0.02, bias_start=0.0, activation=None, sn=False
 	return out
 
 def conv2d(x, channel, k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02, sn=False, padding="VALID", bias=True, name='conv2d'):
-	with tf.variable_scope(name):
-		w = tf.get_variable('weights', [k_h, k_w, x.get_shape()[-1], channel], initializer=tf.truncated_normal_initializer(stddev=stddev))
+	with tf.compat.v1.variable_scope(name):
+		w = tf.compat.v1.get_variable('weights', [k_h, k_w, x.get_shape()[-1], channel], initializer=tf.compat.v1.truncated_normal_initializer(stddev=stddev))
 		if sn:
-			conv = tf.nn.conv2d(x, spectral_norm(w, name="sn"), strides=[1, d_h, d_w, 1], padding=padding)
+			conv = tf.nn.conv2d(input=x, filters=spectral_norm(w, name="sn"), strides=[1, d_h, d_w, 1], padding=padding)
 		else:
-			conv = tf.nn.conv2d(x, w, strides=[1, d_h, d_w, 1], padding=padding)
+			conv = tf.nn.conv2d(input=x, filters=w, strides=[1, d_h, d_w, 1], padding=padding)
 		if bias:
-			biases = tf.get_variable('biases', shape=[channel], initializer=tf.zeros_initializer())
+			biases = tf.compat.v1.get_variable('biases', shape=[channel], initializer=tf.compat.v1.zeros_initializer())
 			conv = tf.nn.bias_add(conv, biases)
 	return conv
 
 def deconv2d(x, channel, k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02, sn=False, padding='VALID', name='deconv2d'):
-	with tf.variable_scope(name):
-		tmp = tf.get_variable('tmp', [k_h, k_w, channel, x.get_shape()[-1]], initializer=tf.random_normal_initializer(stddev=stddev))
+	with tf.compat.v1.variable_scope(name):
+		tmp = tf.compat.v1.get_variable('tmp', [k_h, k_w, channel, x.get_shape()[-1]], initializer=tf.compat.v1.random_normal_initializer(stddev=stddev))
 		
 	def get_deconv_lens(H, k, d):
 		if padding == "VALID":
@@ -147,12 +149,12 @@ def deconv2d(x, channel, k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02, sn=False, padd
 		elif padding == "SAME":
 			# return tf.multiply(H, d)
 			return H * d
-	shape = tf.shape(x)
+	shape = tf.shape(input=x)
 	H, W = shape[1], shape[2]
 	N, _, _, C = x.get_shape().as_list()
-	with tf.variable_scope(name):
-		w = tf.get_variable('weights', [k_h, k_w, channel, x.get_shape()[-1]], initializer=tf.random_normal_initializer(stddev=stddev))
-		biases = tf.get_variable('biases', shape=[channel], initializer=tf.zeros_initializer())
+	with tf.compat.v1.variable_scope(name):
+		w = tf.compat.v1.get_variable('weights', [k_h, k_w, channel, x.get_shape()[-1]], initializer=tf.compat.v1.random_normal_initializer(stddev=stddev))
+		biases = tf.compat.v1.get_variable('biases', shape=[channel], initializer=tf.compat.v1.zeros_initializer())
 		if sn:
 			w = spectral_norm(w, name="sn")
 	
