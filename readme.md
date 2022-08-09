@@ -2,6 +2,12 @@
 
 A simple autoencoder to recover MNIST data using convolutional and de-convolutional layers.
 
+Updated 2022-08-08:
+- To Python3
+- Works in TF2 via <a href="https://www.tensorflow.org/guide/migrate">tf.compat.v1</a>.
+
+Download mnist.npz from https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz
+
 # Usage
 
 Train an AutoEncoder, generate recoverd images, and do t-sne on embeddings.

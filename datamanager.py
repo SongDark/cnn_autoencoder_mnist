@@ -4,7 +4,7 @@ from utils import *
 class datamanager_mnist(object):
     def __init__(self, train_ratio=None, fold_k=None, norm=False, expand_dim=False, seed=233):
         self.seed = seed
-        mnist = np.load("/home/scw4750/songbinxu/datasets/mnist/mnist.npz")
+        mnist = np.load("mnist.npz") # https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz
         self.data = np.concatenate([mnist["x_train"], mnist["x_test"]])
         self.labels = np.concatenate([mnist["y_train"], mnist["y_test"]])
         self.labels = one_hot_encode(self.labels, 10)
@@ -51,7 +51,7 @@ class datamanager_mnist(object):
         
         if fold_k and not train_ratio:
             # only for cross validation
-            print "[{} folds cross validation]".format(fold_k)
+            print ("[{} folds cross validation]".format(fold_k))
             for i in range(10):
                 np.random.seed(i)
                 np.random.shuffle(self.dict_by_class[i])
@@ -71,7 +71,7 @@ class datamanager_mnist(object):
             cur_pos += batch_size
         else:
             rest = cur_pos + batch_size - full_num
-            get_pos = range(cur_pos, full_num) + range(rest)
+            get_pos = list(range(cur_pos, full_num)) + list(range(rest)) # range(cur_pos, full_num) + range(rest)
             cur_pos = rest
         return cur_pos, get_pos
 
@@ -94,7 +94,7 @@ class datamanager_mnist(object):
         
         res = {}
         for key in var_list:
-            if not res.has_key(key):
+            if key not in res:
                 res[key] = func(key)
         
         return res

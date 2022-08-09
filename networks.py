@@ -11,7 +11,7 @@ class MLP(BasicBlock):
         self.sn = sn
     
     def __call__(self, x, is_training=True, reuse=False):
-        with tf.variable_scope(self.name, reuse=reuse):
+        with tf.compat.v1.variable_scope(self.name, reuse=reuse):
             x = tf.reshape(x, [x.get_shape().as_list()[0], -1])
             net = tf.nn.softplus(dense(x, self.hidden_units[0], sn=self.sn, name="fc0"))
             for i in range(1, len(self.hidden_units)):
@@ -29,7 +29,7 @@ class CNN_Encoder(BasicBlock):
         self.sn = sn
     
     def __call__(self, x, sn=False, is_training=True, reuse=False):
-        with tf.variable_scope(self.name, reuse=reuse):
+        with tf.compat.v1.variable_scope(self.name, reuse=reuse):
             net = lrelu(conv2d(x, 64, 4, 4, 2, 2, sn=self.sn, padding="SAME", name="conv1"), name="l1")
             net = lrelu(bn(conv2d(net, 128, 4, 4, 2, 2, sn=self.sn, padding="SAME", name="conv2"), is_training, name="bn2"), name="l2")
             net = lrelu(bn(conv2d(net, 256, 4, 4, 2, 2, sn=self.sn, padding="SAME", name="conv3"), is_training, name="bn3"), name="l3")
@@ -44,7 +44,7 @@ class CNN_Decoder(BasicBlock):
         self.sn = sn
     
     def __call__(self, x, is_training=True, reuse=False):
-        with tf.variable_scope(self.name, reuse=reuse):
+        with tf.compat.v1.variable_scope(self.name, reuse=reuse):
             net = tf.nn.relu(dense(x, 1024, name='fc1'))
             net = tf.nn.relu(bn(dense(net, 256*4*4, name='fc2'), is_training, name='bn2'))
             net = tf.reshape(net, [-1, 4, 4, 256])
